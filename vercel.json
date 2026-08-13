@@ -1,0 +1,10 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": "nextjs",
+  "regions": ["bom1"],
+  "env": {
+    "DATA_MODE": "auto",
+    "REGION": "IN",
+    "LOCALE": "en-IN"
+  }
+}

@@ -1,0 +1,913 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=5, viewport-fit=cover">
+<title>What's Tonight? — prototype</title>
+<style>
+/* ===========================================================================
+   WHAT'S TONIGHT? — INTERACTIVE PROTOTYPE
+
+   Everything here is real behaviour from the built app: the mood-first flow,
+   the follow-up question, the four card actions, the language labels, the
+   score breakdown, the filters. Tap through it.
+
+   The only thing faked is the data source — the real app pulls from TMDB and
+   OMDb; this has six titles baked in so it runs from a file with no server.
+   =========================================================================== */
+
+:root{
+  --paper:#F7F5F1; --surface:#fff; --surface-2:#F1EEE8; --surface-3:#E9E5DD;
+  --ink:#14161B; --ink-2:#4A4E58; --ink-3:#878C94;
+  --line:#E4E0D8; --line-2:#EEEAE2;
+  --accent:#A34E12; --accent-2:#C97620; --accent-soft:#FBF1E3;
+  --gold:#C9971B; --gold-soft:#FDF7E8;
+  --hindi:#0B6E52; --hindi-soft:#E4F2EC;
+  --english:#6B4BA6; --english-soft:#F0EBF9;
+  --r:20px; --r-sm:13px;
+  --sh-1:0 1px 2px rgba(20,22,27,.05);
+  --sh-2:0 1px 2px rgba(20,22,27,.05), 0 12px 28px -16px rgba(20,22,27,.3);
+  --sh-3:0 2px 6px rgba(20,22,27,.06), 0 28px 56px -28px rgba(20,22,27,.45);
+  --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+  --serif:"Iowan Old Style","Palatino Linotype",Palatino,Georgia,"Times New Roman",serif;
+  --e:cubic-bezier(.22,1,.36,1);
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html{-webkit-text-size-adjust:100%;overscroll-behavior-y:none;font-size:16px}
+body{
+  margin:0;font-family:var(--sans);font-size:1rem;line-height:1.55;
+  background:var(--paper);color:var(--ink);min-height:100dvh;
+  /* Faint paper tooth so large flat areas aren't dead. */
+  background-image:radial-gradient(circle at 1px 1px, rgba(20,22,27,.018) 1px, transparent 0);
+  background-size:22px 22px;
+}
+button{font:inherit;color:inherit;background:none;border:none;cursor:pointer;touch-action:manipulation}
+input{font:inherit;font-size:1rem}
+.shell{max-width:452px;margin:0 auto;padding:0 20px 130px}
+.hide{display:none!important}
+
+/* ============================================================ MASTHEAD === */
+.mast{position:relative;overflow:hidden;padding:calc(env(safe-area-inset-top,0px) + 18px) 20px 26px;
+  background:
+    radial-gradient(120% 110% at 10% -10%, #FDF2DF 0%, rgba(253,242,223,0) 60%),
+    radial-gradient(95% 85% at 105% 5%, #F7E6DD 0%, rgba(247,230,221,0) 58%),
+    var(--paper);}
+.mast::after{content:"";position:absolute;inset:auto 0 0 0;height:1px;
+  background:linear-gradient(90deg,transparent,rgba(20,22,27,.07),transparent)}
+.mast-in{max-width:452px;margin:0 auto}
+.brow{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.mark{display:inline-flex;align-items:center;gap:8px;font-family:var(--serif);
+  font-size:1rem;font-weight:600;color:var(--ink-2);letter-spacing:.01em}
+.mark i{width:7px;height:7px;border-radius:99px;background:var(--accent-2);display:inline-block}
+.day{font-size:.72rem;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-3)}
+.back{display:inline-flex;align-items:center;gap:5px;height:44px;padding:0 16px;
+  border:1px solid var(--line);border-radius:99px;background:rgba(255,255,255,.8);
+  backdrop-filter:blur(10px);font-size:.9rem;font-weight:550;color:var(--ink-2)}
+.hero{padding-top:26px}
+.hero h1{font-family:var(--serif);font-size:2.45rem;line-height:1.05;font-weight:600;
+  letter-spacing:-.028em;margin:0}
+.hero .bar{width:48px;height:3px;margin-top:17px;border-radius:99px;
+  background:linear-gradient(90deg,var(--accent-2),var(--gold))}
+.hero p{margin:16px 0 0;font-size:1.18rem;font-weight:500;line-height:1.35;color:var(--ink-2)}
+
+/* ============================================================== SHARED === */
+.card{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);
+  box-shadow:var(--sh-2);overflow:hidden;position:relative}
+.rule{display:flex;align-items:center;gap:9px;font-size:.72rem;font-weight:700;
+  letter-spacing:.12em;text-transform:uppercase;color:var(--ink-3);margin:0 0 10px}
+.rule::after{content:"";flex:1;height:1px;background:var(--line-2)}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;
+  border-radius:var(--r-sm);border:1px solid var(--line);background:var(--surface);
+  font-weight:550;transition:transform .14s var(--e);min-height:48px}
+.btn:active{transform:scale(.97)}
+.btn-dark{background:linear-gradient(135deg,#22252C,#131519);color:#fff;border-color:transparent;
+  box-shadow:0 1px 2px rgba(20,22,27,.08),0 12px 24px -14px rgba(20,22,27,.55)}
+.chip{display:inline-flex;align-items:center;gap:6px;min-height:44px;padding:0 14px;
+  border-radius:99px;border:1px solid var(--line);background:var(--surface);
+  font-size:.9rem;color:var(--ink-2);transition:all .16s var(--e)}
+.chip[aria-pressed="true"]{border-color:var(--accent);background:var(--accent-soft);
+  color:var(--accent);font-weight:650}
+
+/* ============================================================ FOLLOW-UP == */
+.followup{margin-bottom:18px;padding:18px;animation:rise .5s var(--e) both}
+.followup h2{font-family:var(--serif);font-size:1.28rem;font-weight:600;
+  line-height:1.25;margin:7px 0 0;letter-spacing:-.012em}
+.followup h2 em{font-style:normal;color:var(--accent)}
+.followup .sub{margin:7px 0 0;font-size:.86rem;color:var(--ink-3);line-height:1.45}
+.fu-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:16px}
+.fu-grid .btn{flex-direction:column;gap:5px;min-height:66px;font-size:.88rem}
+.fu-grid .btn span:first-child{font-size:1.3rem;line-height:1}
+
+/* ============================================================ MOOD GRID == */
+.moods{display:grid;grid-template-columns:1fr 1fr;gap:11px;margin-top:22px}
+.mood{position:relative;overflow:hidden;display:flex;flex-direction:column;
+  align-items:flex-start;gap:9px;min-height:100px;padding:15px;text-align:left;
+  border:1px solid var(--line);border-radius:var(--r);background:var(--surface);
+  box-shadow:var(--sh-1);transition:transform .18s var(--e),box-shadow .18s var(--e)}
+.mood:active{transform:scale(.972)}
+.mood::after{content:"";position:absolute;inset:0;pointer-events:none;
+  background:linear-gradient(150deg,var(--tint) 0%,rgba(255,255,255,0) 74%)}
+.mood .ico{position:relative;z-index:1;display:flex;align-items:center;justify-content:center;
+  width:44px;height:44px;border-radius:14px;background:var(--chip);font-size:1.35rem;line-height:1;
+  box-shadow:inset 0 0 0 1px rgba(20,22,27,.05),0 2px 6px -3px rgba(20,22,27,.25)}
+.mood .nm{position:relative;z-index:1;font-size:1.04rem;font-weight:650;letter-spacing:-.015em;line-height:1.2}
+.mood .hn{position:relative;z-index:1;font-size:.78rem;color:var(--ink-3);line-height:1.35}
+.mood.wide{grid-column:1/-1;flex-direction:row;align-items:center;gap:13px;min-height:76px}
+
+/* =============================================================== PANEL === */
+.panel-btn{display:flex;align-items:center;justify-content:space-between;width:100%;
+  min-height:60px;margin-top:13px;padding:0 17px;text-align:left;
+  border:1px solid var(--line);border-radius:var(--r);background:var(--surface);box-shadow:var(--sh-1)}
+.panel-btn .t{font-size:1rem;font-weight:550}
+.panel-btn .s{display:block;margin-top:2px;font-size:.76rem;color:var(--ink-3);font-weight:400}
+.panel-btn .cv{font-size:.68rem;color:var(--ink-3);transition:transform .3s var(--e)}
+.panel-btn[aria-expanded="true"] .cv{transform:rotate(180deg)}
+.count{display:inline-flex;align-items:center;justify-content:center;min-width:21px;height:21px;
+  padding:0 6px;margin-left:8px;border-radius:99px;background:var(--accent);color:#fff;
+  font-size:.72rem;font-weight:700}
+.filters{margin-top:10px;padding:2px 17px 18px}
+.filters h4{margin:18px 0 10px}
+.chips{display:flex;flex-wrap:wrap;gap:7px}
+.ffoot{display:flex;gap:9px;margin-top:22px}
+.ffoot .btn{flex:1;min-height:52px;font-size:.92rem}
+
+/* ============================================================== SEARCH === */
+.searchwrap{margin-top:13px;position:relative}
+.searchwrap input{width:100%;min-height:58px;padding:0 54px 0 44px;border-radius:var(--r);
+  border:1px solid var(--line);background:var(--surface);box-shadow:var(--sh-1);color:var(--ink)}
+.searchwrap input::placeholder{color:var(--ink-3)}
+.searchwrap input:focus{outline:none;border-color:var(--accent-2)}
+.sicon{position:absolute;left:16px;top:50%;transform:translateY(-50%);color:var(--ink-3);pointer-events:none}
+.mic{position:absolute;right:8px;top:50%;transform:translateY(-50%);width:44px;height:44px;
+  border-radius:99px;display:flex;align-items:center;justify-content:center;color:var(--ink-3);
+  transition:all .2s var(--e)}
+.mic[data-on="true"]{background:var(--accent);color:#fff}
+.examples{display:flex;gap:7px;margin-top:10px;overflow-x:auto;padding-bottom:3px;
+  scrollbar-width:none;-webkit-overflow-scrolling:touch}
+.examples::-webkit-scrollbar{display:none}
+.ex{flex:0 0 auto;display:flex;align-items:center;min-height:44px;padding:0 15px;border-radius:99px;
+  background:var(--surface-2);font-size:.84rem;color:var(--ink-2);white-space:nowrap}
+
+/* ============================================================== RESULT === */
+.rhead{margin:22px 0 18px}
+.kick{display:inline-flex;align-items:center;gap:7px;padding:8px 15px;border-radius:99px;
+  background:var(--accent-soft);border:1px solid rgba(163,78,18,.16);
+  color:var(--accent);font-size:.88rem;font-weight:650}
+.rhead h2{font-family:var(--serif);font-size:1.72rem;font-weight:600;letter-spacing:-.022em;
+  margin:14px 0 0;line-height:1.14}
+.rhead p{margin:8px 0 0;font-size:.9rem;color:var(--ink-3)}
+
+/* ================================================================ CARD === */
+.pick{margin-bottom:17px;animation:rise .55s var(--e) both}
+@keyframes rise{from{opacity:0;transform:translateY(18px)}}
+.pick.out{animation:out .42s var(--e) forwards}
+@keyframes out{to{opacity:0;transform:translateX(-28px) scale(.95);max-height:0;margin-bottom:0}}
+.pick.chosen{border-color:rgba(163,78,18,.42);box-shadow:0 0 0 3px var(--accent-soft),var(--sh-2)}
+.spine{position:absolute;inset:0 auto 0 0;width:4px}
+.ptop{display:flex;align-items:center;gap:11px;padding:14px 16px 0 21px}
+.num{display:flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:99px;
+  border:1px solid var(--line);font-family:var(--serif);font-size:.86rem;font-weight:600;color:var(--ink-3);flex:0 0 auto}
+.slot{font-size:.7rem;font-weight:700;letter-spacing:.11em;text-transform:uppercase;color:var(--accent);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.exc{margin-left:auto;flex:0 0 auto;display:inline-flex;align-items:center;gap:4px;padding:5px 10px;
+  border-radius:99px;background:var(--gold-soft);border:1px solid rgba(201,151,27,.34);
+  font-size:.7rem;font-weight:650;color:#8A6510;white-space:nowrap}
+.pmain{display:flex;gap:15px;padding:12px 16px 2px 21px}
+.poster{position:relative;flex:0 0 104px;width:104px;height:156px;border-radius:var(--r-sm);
+  overflow:hidden;background:#14171B;
+  box-shadow:0 10px 24px -11px rgba(20,22,27,.66),inset 0 0 0 1px rgba(255,255,255,.1)}
+.poster .art{position:absolute;inset:0;width:100%;height:100%;display:block}
+/* Print sheen — a poster is a physical object, so it catches light. */
+.poster .gloss{position:absolute;inset:0;pointer-events:none;background:
+  linear-gradient(154deg,rgba(255,255,255,.2),rgba(255,255,255,.03) 34%,rgba(255,255,255,0) 52%)}
+/* Paper grain, one cached data-URI shared by every poster. */
+.poster .grain{position:absolute;inset:0;pointer-events:none;opacity:.3;mix-blend-mode:overlay;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='90' height='90'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.86' numOctaves='3'/%3E%3C/filter%3E%3Crect width='90' height='90' filter='url(%23n)' opacity='.5'/%3E%3C/svg%3E")}
+.pinfo{min-width:0;flex:1}
+.pinfo h3{font-family:var(--serif);font-size:1.3rem;font-weight:600;line-height:1.14;
+  letter-spacing:-.018em;margin:0;text-wrap:balance}
+.pinfo .meta{margin-top:3px;font-size:.82rem;color:var(--ink-3)}
+.plate{display:inline-flex;align-items:baseline;gap:6px;margin-top:11px;padding:7px 11px;
+  border-radius:11px;background:linear-gradient(180deg,#FEFBF2,#FBF5E7);
+  border:1px solid rgba(201,151,27,.26)}
+.plate .st{font-size:.86rem}
+.plate .sc{font-size:1.38rem;font-weight:760;letter-spacing:-.03em;color:#684C07}
+.plate .of,.plate .vt{font-size:.75rem;color:#94773A}
+.badges{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+.bdg{display:inline-flex;align-items:center;gap:5px;padding:6px 10px;border-radius:9px;
+  font-size:.8rem;font-weight:650;background:var(--surface-2);color:var(--ink-2)}
+.bdg.hi{background:var(--hindi-soft);color:var(--hindi)}
+.bdg.en{background:var(--english-soft);color:var(--english)}
+.bdg i{width:7px;height:7px;border-radius:2px;display:inline-block}
+.more{display:flex;align-items:center;gap:7px;min-height:48px;padding:0 16px 0 21px;
+  font-size:.95rem;font-weight:550;color:var(--accent);width:100%}
+.more .cv{font-size:.62rem;transition:transform .3s var(--e)}
+.more[aria-expanded="true"] .cv{transform:rotate(180deg)}
+.det{display:none;padding:0 16px 6px 21px;border-top:1px solid var(--line-2)}
+.det.on{display:block;animation:fade .34s var(--e) both}
+@keyframes fade{from{opacity:0}}
+.blk{padding:15px 0;border-bottom:1px solid var(--line-2)}
+.blk:last-child{border-bottom:none}
+.blk p{margin:0;font-size:.95rem;line-height:1.62}
+.facts{font-size:.88rem;color:var(--ink-2)}
+.scores{display:flex;flex-wrap:wrap;gap:7px}
+.sp{padding:8px 11px;border-radius:9px;background:var(--surface-2);font-size:.86rem}
+.sp.na{color:var(--ink-3);font-style:italic}
+.cast{display:flex;gap:9px;overflow-x:auto;padding-bottom:4px;scrollbar-width:none}
+.cast::-webkit-scrollbar{display:none}
+.cm{flex:0 0 auto;width:68px;text-align:center}
+.cm .face{width:56px;height:56px;margin:0 auto 6px;border-radius:99px;display:flex;
+  align-items:center;justify-content:center;font-family:var(--serif);font-size:1.06rem;
+  font-weight:600;color:#fff;box-shadow:inset 0 -9px 18px rgba(0,0,0,.16)}
+.cm .n{font-size:.71rem;line-height:1.25;color:var(--ink-2)}
+.cm .r{font-size:.65rem;color:var(--ink-3)}
+.acts{padding:14px 16px 17px 21px;border-top:1px solid var(--line-2)}
+.acts .btn-dark{width:100%;min-height:56px;font-size:1.05rem;font-weight:650}
+.arow{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:8px}
+.arow .btn{min-height:50px;font-size:.86rem;gap:5px;white-space:nowrap;padding:0 4px}
+.chosenbar{display:flex;align-items:center;gap:10px;margin:14px 16px 17px 21px;padding:15px 16px;
+  border-radius:var(--r-sm);background:linear-gradient(135deg,#FCF3E4,#FAECD9);
+  border:1px solid rgba(163,78,18,.3)}
+.chosenbar .m{flex:1;font-size:.95rem;font-weight:650;color:var(--accent)}
+.chosenbar .u{font-size:.88rem;color:var(--ink-2);text-decoration:underline;text-underline-offset:3px}
+
+/* ================================================================ MISC === */
+.big{display:flex;align-items:center;justify-content:center;gap:9px;width:100%;min-height:60px;
+  margin-top:7px;border:1px solid var(--line);border-radius:var(--r);background:var(--surface);
+  font-size:1rem;font-weight:650;box-shadow:var(--sh-1)}
+.done{padding:44px 20px;text-align:center}
+.done .t{font-family:var(--serif);font-size:1.4rem;font-weight:600;margin:12px 0 6px}
+.done p{margin:0;font-size:.95rem;color:var(--ink-2)}
+.note{margin-top:20px;padding:14px 16px;border-radius:var(--r-sm);background:var(--surface-2);
+  font-size:.8rem;line-height:1.55;color:var(--ink-3)}
+.note b{color:var(--ink-2)}
+.tsize{display:flex;align-items:center;gap:12px;margin-top:22px;padding:12px 16px;
+  border:1px solid var(--line);border-radius:var(--r);background:var(--surface)}
+.tsize .lb{font-size:.86rem;color:var(--ink-2)}
+.tsize .grp{margin-left:auto;display:flex;gap:6px}
+.tsize button{min-width:46px;min-height:44px;border-radius:10px;border:1px solid var(--line);color:var(--ink-2)}
+.tsize button[aria-pressed="true"]{border-color:var(--accent);background:var(--accent-soft);
+  color:var(--accent);font-weight:700}
+.foot{margin-top:26px;text-align:center;font-size:.72rem;line-height:1.6;color:var(--ink-3);padding-bottom:8px}
+.foot a{color:inherit}
+
+.load{padding:64px 0;text-align:center}
+.reel{width:48px;height:48px;margin:0 auto 18px;position:relative;animation:spin 3.4s linear infinite}
+.reel::before{content:"";position:absolute;inset:0;border-radius:99px;border:2.5px solid var(--line)}
+.reel::after{content:"";position:absolute;inset:0;border-radius:99px;border:2.5px solid transparent;
+  border-top-color:var(--accent-2);animation:spin .95s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.load .m{font-size:1rem;font-weight:550}
+.load .s{font-size:.86rem;color:var(--ink-3);margin-top:5px}
+
+.toast{position:fixed;left:50%;bottom:calc(96px + env(safe-area-inset-bottom,0px));
+  transform:translate(-50%,18px);z-index:70;padding:13px 21px;border-radius:99px;
+  background:#1A1D23;color:#fff;font-size:.92rem;font-weight:550;white-space:nowrap;
+  opacity:0;pointer-events:none;transition:all .3s var(--e);box-shadow:var(--sh-3)}
+.toast.on{opacity:1;transform:translate(-50%,0)}
+
+/* ================================================================ SHEET == */
+.sheet{position:fixed;inset:0;z-index:80;display:flex;align-items:flex-end;justify-content:center}
+.sheet .scrim{position:absolute;inset:0;background:rgba(20,22,27,.5);backdrop-filter:blur(3px)}
+.sheet .body{position:relative;width:100%;max-width:452px;max-height:86dvh;overflow-y:auto;
+  background:var(--surface);border-radius:26px 26px 0 0;border-top:1px solid var(--line);
+  padding-bottom:calc(28px + env(safe-area-inset-bottom,0px));animation:up .3s var(--e) both}
+@keyframes up{from{transform:translateY(100%)}}
+.sheet .hd{position:sticky;top:0;background:rgba(255,255,255,.96);backdrop-filter:blur(10px);
+  padding:12px 20px 12px;border-radius:26px 26px 0 0;z-index:2}
+.sheet .grab{width:40px;height:4px;border-radius:99px;background:rgba(20,22,27,.16);margin:0 auto 12px}
+.sheet h3{font-family:var(--serif);font-size:1.25rem;font-weight:600;margin:5px 0 0}
+.reasons{list-style:none;margin:6px 0 0;padding:0 20px}
+.reasons li{display:flex;gap:12px;padding:7px 0;font-size:.93rem;line-height:1.55}
+.reasons li .i{flex:0 0 22px}
+.brk{margin:8px 20px 0;padding:16px;border-radius:var(--r-sm);background:var(--surface-2)}
+.brk .row{margin-bottom:11px}
+.brk .row:last-child{margin-bottom:0}
+.brk .lab{display:flex;justify-content:space-between;align-items:baseline;gap:10px;
+  font-size:.82rem;color:var(--ink-2);margin-bottom:5px}
+.brk .lab b{font-variant-numeric:tabular-nums;font-weight:600}
+.brk .track{height:6px;border-radius:99px;background:rgba(20,22,27,.07);overflow:hidden}
+.brk .fill{height:100%;border-radius:99px;background:linear-gradient(90deg,var(--accent-2),var(--gold))}
+
+/* ================================================================= NAV === */
+.nav{position:fixed;inset:auto 0 0 0;z-index:60;background:rgba(255,255,255,.94);
+  backdrop-filter:blur(14px);border-top:1px solid var(--line);
+  padding-bottom:env(safe-area-inset-bottom,0px)}
+.nav .in{max-width:452px;margin:0 auto;display:flex}
+.nav a{position:relative;flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;
+  padding:10px 0 11px;text-decoration:none;font-size:.68rem;font-weight:550;color:var(--ink-3)}
+.nav a.on{color:var(--accent)}
+.nav svg{width:22px;height:22px}
+.pip{position:absolute;top:6px;left:50%;margin-left:5px;min-width:17px;height:17px;padding:0 4px;
+  border-radius:99px;background:var(--accent);color:#fff;font-size:.62rem;font-weight:700;
+  display:flex;align-items:center;justify-content:center}
+
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation-duration:.01ms!important;transition-duration:.01ms!important}
+}
+</style>
+</head>
+<body>
+
+<div class="mast">
+  <div class="mast-in">
+    <div class="brow">
+      <span class="mark"><i></i>What's Tonight?</span>
+      <span class="day" id="day">Thursday</span>
+      <button class="back hide" id="back">‹ Change</button>
+    </div>
+    <div class="hero" id="hero">
+      <h1>Hi Papa 👋</h1>
+      <div class="bar"></div>
+      <p>What are you in the mood for tonight?</p>
+    </div>
+  </div>
+</div>
+
+<div class="shell">
+
+  <!-- ========================= SCREEN 1 ========================= -->
+  <section id="s1">
+
+    <!-- The single most valuable question the app asks. -->
+    <div class="card followup" id="fu">
+      <div class="rule" style="margin:0">Quick question</div>
+      <h2>You picked <em>Andhadhun</em> last time. How was it?</h2>
+      <p class="sub">One tap. It's the most useful thing you can tell me — it's the
+        difference between learning what you liked the look of and what you actually enjoyed.</p>
+      <div class="fu-grid">
+        <button class="btn" data-fu="loved"><span>😍</span><span>Loved it</span></button>
+        <button class="btn" data-fu="fine"><span>🙂</span><span>It was fine</span></button>
+        <button class="btn" data-fu="gave"><span>😕</span><span>Gave up on it</span></button>
+        <button class="btn" data-fu="never"><span>🕐</span><span>Never got to it</span></button>
+      </div>
+    </div>
+
+    <div class="moods" id="moods"></div>
+
+    <button class="panel-btn" id="fbtn" aria-expanded="false">
+      <span>
+        <span class="t">More filters<span class="count hide" id="fcount">0</span></span>
+        <span class="s">Genre · Era · Cinema · Language · Length · Platform</span>
+      </span>
+      <span class="cv">▼</span>
+    </button>
+    <div class="card filters hide" id="filters"></div>
+
+    <div class="searchwrap">
+      <span class="sicon">⌕</span>
+      <input id="q" type="search" placeholder="Or just tell me what you want…" aria-label="Describe what you want to watch">
+      <button class="mic" id="mic" data-on="false" aria-label="Search by voice">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+          <rect x="9" y="3" width="6" height="11" rx="3" stroke="currentColor" stroke-width="1.8"/>
+          <path d="M5.5 11a6.5 6.5 0 0 0 13 0" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+          <path d="M12 17.5V21" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+        </svg>
+      </button>
+    </div>
+    <div class="examples" id="ex"></div>
+
+    <div class="note">
+      <b>Still learning.</b> For the first few weeks it leans on ratings and reviews while it
+      works out what you actually pick. The more you tap, the sharper it gets — and it will
+      always keep a couple of unexpected things in the mix.
+    </div>
+
+    <div class="tsize">
+      <span class="lb">Text size</span>
+      <div class="grp" id="ts"></div>
+    </div>
+  </section>
+
+  <!-- ========================= LOADING ========================= -->
+  <div class="load hide" id="load">
+    <div class="reel"></div>
+    <div class="m">Searching Netflix, Prime and JioHotstar…</div>
+    <div class="s" id="lstep">Removing everything you've already seen</div>
+  </div>
+
+  <!-- ========================= SCREEN 2 ========================= -->
+  <section id="s2" class="hide">
+    <div class="rhead">
+      <span class="kick" id="kick">🕵️ Mystery</span>
+      <h2>Here's what I'd pick tonight.</h2>
+      <p id="sub">6 picks · Hindi first, English only where it earns it</p>
+    </div>
+    <div id="cards"></div>
+    <div class="done hide" id="alldone">
+      <div style="font-size:2rem">✨</div>
+      <div class="t">That's tonight sorted.</div>
+      <p>Anything you saved is waiting under Later.</p>
+    </div>
+    <button class="big" id="again">🔄 Give me different picks</button>
+    <button class="big" id="missed">💎 Things you may have missed</button>
+    <div class="foot">
+      Metadata, posters and streaming availability from <a href="#">TMDB</a>.
+      Ratings from <a href="#">OMDb</a>.<br>
+      This product uses the TMDB API but is not endorsed or certified by TMDB.
+    </div>
+  </section>
+</div>
+
+<div class="toast" id="toast"></div>
+<div class="sheet hide" id="sheet"><div class="scrim" id="scrim"></div><div class="body" id="sheetBody"></div></div>
+
+<nav class="nav">
+  <div class="in">
+    <a href="#" class="on"><svg viewBox="0 0 24 24" fill="none"><path d="M20 14.5A8.5 8.5 0 1 1 9.5 4a7 7 0 0 0 10.5 10.5Z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg>Tonight</a>
+    <a href="#"><span class="pip hide" id="pip">0</span><svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="8.4" stroke="currentColor" stroke-width="1.7"/><path d="M12 7.6V12l3 1.8" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>Later</a>
+    <a href="#"><svg viewBox="0 0 24 24" fill="none"><rect x="3.6" y="3.6" width="16.8" height="16.8" rx="5" stroke="currentColor" stroke-width="1.7"/><path d="m8 12.2 2.7 2.7L16 9.6" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg>Watched</a>
+    <a href="#"><svg viewBox="0 0 24 24" fill="none"><circle cx="11" cy="11" r="6.6" stroke="currentColor" stroke-width="1.7"/><path d="m16 16 4.2 4.2" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/></svg>Search</a>
+  </div>
+</nav>
+
+<script>
+/* ===========================================================================
+   State lives in memory. The real app persists it behind a swappable adapter.
+   =========================================================================== */
+
+const MOODS=[
+ {id:"action",e:"🔥",n:"Action",h:"Fast, loud, gripping",t:"rgba(228,106,58,.14)",c:"#FCE7DB"},
+ {id:"mystery",e:"🕵️",n:"Mystery",h:"Twists and puzzles",t:"rgba(63,90,150,.13)",c:"#E1E7F5"},
+ {id:"family",e:"❤️",n:"Family",h:"Watch with everyone",t:"rgba(206,84,102,.13)",c:"#FBE3E7"},
+ {id:"light",e:"😂",n:"Light & Fun",h:"Nothing heavy",t:"rgba(217,163,32,.16)",c:"#FBEFD3"},
+ {id:"romance",e:"💕",n:"Romance",h:"Love stories",t:"rgba(203,90,152,.13)",c:"#FAE2EF"},
+ {id:"story",e:"🧠",n:"Great Story",h:"Something meaningful",t:"rgba(38,138,124,.13)",c:"#DCF0EB"},
+ {id:"dark",e:"😱",n:"Suspense",h:"Dark and intense",t:"rgba(78,84,102,.15)",c:"#E4E6ED"},
+ {id:"bolly",e:"🎞",n:"Bollywood",h:"Hindi cinema, any era",t:"rgba(198,132,26,.16)",c:"#FAECD3"}];
+
+const FILTERS=[
+ {k:"genre",l:"Genre",o:["Any genre","Action","Thriller","Mystery","Comedy","Family","Drama","Romance","Crime"]},
+ {k:"era",l:"Era",o:["Any era","New releases","2020s","2010s","2000s","1990s","1980s","1970s & older"]},
+ {k:"ind",l:"Cinema",o:["Any","Bollywood","Hollywood","South Indian","International"]},
+ {k:"lang",l:"Language",o:["Hindi or Hindi dubbed","Hindi only","Include English","Any"]},
+ {k:"fmt",l:"Movie or series",o:["Either","Movies","Series","Limited series"]},
+ {k:"len",l:"Length",o:["Any length","Under 1 hour","Under 90 min","Under 2 hours","2+ hours"]},
+ {k:"ott",l:"Platform",o:["All my platforms","Netflix","Prime Video","JioHotstar"]}];
+
+const EXAMPLES=["A 2000s Bollywood comedy","Something like Drishyam","Hollywood action in Hindi dubbed",
+ "A mystery with a great ending","Something good I probably haven't seen"];
+
+const PICKS=[
+{slot:"Best match",t:"Kahaani",y:2012,imdb:"8.1",votes:"76K",rt:null,
+ lang:"hi",langL:"🇮🇳 Hindi",where:"Prime Video",wc:"prime",
+ facts:"Film · 2012 · 2h 02m · 2010s · Bollywood · Thriller, Mystery, Drama",
+ cast:[["Vidya Balan","Vidya"],["Parambrata Chatterjee","Rana"],["Nawazuddin Siddiqui","Khan"],["Saswata Chatterjee","Bob"]],
+ story:"A pregnant woman arrives in Kolkata during Durga Puja to look for her missing husband, and finds that nobody will admit he ever existed.",
+ people:"The twist and Vidya Balan's performance dominate every discussion, and Kolkata functions as a character in its own right. Rewatch value is the one recurring caveat — the reveal is the engine.",
+ why:"The strongest mystery available to you tonight: 8.1 on IMDb from 76K ratings, with viewers pointing to real tension and an ending that lands.",
+ reasons:[["🇮🇳","Hindi — originally made in Hindi."],["⭐","IMDb 8.1 from 76K ratings"],
+  ["👥","Reviewers most often praise suspense and acting"],["📺","Available on Prime Video in India"],
+  ["🎬","2010s · Bollywood"],["⏱","2h 02m"],["🎭","Closely matches the mood you picked tonight"],
+  ["✓","Not on your Seen or Not Interested lists"],
+  ["🧠","Still learning your taste — ranked on quality, reviews and tonight's mood"],
+  ["🎯","Top of the ranking once quality, reviews, language, mood and availability were combined."]],
+ brk:[["Ratings quality",27.4,34],["Fits tonight's mood",16.8,18],["Learned taste (confidence-scaled)",0,18],
+  ["Likely undiscovered",7.1,14],["Hindi availability",12,12],["Fits your evening",7,12],
+  ["Critic/audience agreement",5,10],["Review sentiment",9.2,10],["Trending (quality-gated)",0,8]],
+ score:84.5},
+
+{slot:"Strong match",t:"Shutter Island",y:2010,imdb:"8.2",votes:"1.4M",rt:69,
+ lang:"hi",langL:"🇮🇳 Hindi Dubbed",where:"Netflix",wc:"nf",
+ facts:"Film · 2010 · 2h 18m · 2010s · Hollywood · Mystery, Thriller",
+ cast:[["Leonardo DiCaprio","Teddy"],["Mark Ruffalo","Chuck"],["Ben Kingsley","Dr Cawley"],["Michelle Williams","Dolores"]],
+ story:"Two US marshals investigate a disappearance from a hospital for the criminally insane on a remote island, and nothing about the place adds up.",
+ people:"The atmosphere and DiCaprio's performance draw the most praise, and the final reveal is argued about years later. Some find the middle stretch heavy going.",
+ why:"A Hollywood mystery with a full Hindi dub, so nothing is lost — and one of the most discussed endings of its decade.",
+ reasons:[["🇮🇳","Hindi Dubbed — a Hindi dubbed version is available on this platform."],
+  ["⭐","IMDb 8.2 from 1.4M ratings"],["🍅","Rotten Tomatoes critics 69%"],
+  ["👥","Reviewers most often praise suspense and production"],["📺","Available on Netflix in India"],
+  ["🎬","2010s · Hollywood"],["⏱","2h 18m"],["✓","Not on your Seen or Not Interested lists"],
+  ["🎯","A second strong option that isn't a near-copy of the first."]],
+ brk:[["Ratings quality",29.1,34],["Fits tonight's mood",15.9,18],["Learned taste (confidence-scaled)",0,18],
+  ["Likely undiscovered",2.4,14],["Hindi availability",10,12],["Fits your evening",7,12],
+  ["Critic/audience agreement",5.6,10],["Review sentiment",8.4,10],["Trending (quality-gated)",0,8]],
+ score:78.4},
+
+{slot:"You may have missed this",t:"Johnny Gaddaar",y:2007,imdb:"8.0",votes:"18K",rt:null,
+ lang:"hi",langL:"🇮🇳 Hindi",where:"Prime Video",wc:"prime",
+ facts:"Film · 2007 · 2h 05m · 2000s · Bollywood · Crime, Thriller",
+ cast:[["Neil Nitin Mukesh","Vikram"],["Dharmendra","Sheshadri"],["Vinay Pathak","Prakash"],["Rimi Sen","Mini"]],
+ story:"Five men plan one clean deal. One of them decides to take the money for himself, and spends the rest of the film covering a mistake with a bigger mistake.",
+ people:"A cult favourite most people find by word of mouth — the plotting and retro styling get consistent praise, and it is regularly called one of the best Hindi noirs ever made.",
+ why:"Very well rated but barely watched — the kind of thing that slips past most people.",
+ reasons:[["🇮🇳","Hindi — originally made in Hindi."],["⭐","IMDb 8.0 from 18K ratings"],
+  ["👥","Reviewers most often praise story and ending"],["📺","Available on Prime Video in India"],
+  ["🎬","2000s · Bollywood"],["⏱","2h 05m"],["💎","Comparatively under-watched, so less likely you have already seen it"],
+  ["✓","Not on your Seen or Not Interested lists"],
+  ["🎯","Rated highly but with a comparatively small audience — the kind of thing that slips past most people."]],
+ brk:[["Ratings quality",24.8,34],["Fits tonight's mood",15.1,18],["Learned taste (confidence-scaled)",0,18],
+  ["Likely undiscovered",12.4,14],["Hindi availability",12,12],["Fits your evening",7,12],
+  ["Critic/audience agreement",5,10],["Review sentiment",8.8,10],["Trending (quality-gated)",0,8]],
+ score:85.1},
+
+{slot:"Strong match",exc:"⭐ Worth the exception",t:"Prisoners",y:2013,imdb:"8.2",votes:"750K",rt:81,
+ lang:"en",langL:"🇬🇧 English Only",where:"Netflix",wc:"nf",
+ facts:"Film · 2013 · 2h 33m · 2010s · Hollywood · Thriller, Crime, Drama",
+ cast:[["Hugh Jackman","Keller"],["Jake Gyllenhaal","Det. Loki"],["Viola Davis","Nancy"],["Paul Dano","Alex"]],
+ story:"When two girls vanish on Thanksgiving, one father decides the detective is moving too slowly and takes the investigation somewhere very dark.",
+ people:"Consistently held up as a top-tier modern thriller, with the two lead performances and Roger Deakins' photography drawing the most praise. It is long and genuinely grim.",
+ why:"No Hindi dub, which normally counts against a title — but at 8.2 on IMDb from 750K ratings and 81% from critics, this one earns the exception.",
+ reasons:[["🇬🇧","English Only — no Hindi dub available, English audio with subtitles."],
+  ["⭐","No Hindi dub, which normally counts against a title — but the ratings and reviews are strong enough to make an exception."],
+  ["⭐","IMDb 8.2 from 750K ratings"],["🍅","Rotten Tomatoes critics 81%"],
+  ["👥","Reviewers most often praise acting and suspense"],["⚠️","Common criticism: pacing"],
+  ["📺","Available on Netflix in India"],["🎬","2010s · Hollywood"],["⏱","2h 33m"],
+  ["✓","Not on your Seen or Not Interested lists"]],
+ brk:[["Ratings quality",29.4,34],["Fits tonight's mood",16.2,18],["Learned taste (confidence-scaled)",0,18],
+  ["Likely undiscovered",3.9,14],["Hindi availability",0,12],["Fits your evening",6,12],
+  ["Critic/audience agreement",5.7,10],["Review sentiment",8.1,10],["Trending (quality-gated)",0,8]],
+ score:69.3},
+
+{slot:"Something different",t:"Kohrra",y:2023,imdb:"8.0",votes:"22K",rt:null,
+ lang:"hi",langL:"🇮🇳 Hindi",where:"Netflix",wc:"nf",
+ facts:"Limited series · 2023 · 45 min/episode · 6 episodes · 2020s · Bollywood · Crime, Mystery",
+ cast:[["Suvinder Vicky","Balbir"],["Barun Sobti","Amarpal"],["Harleen Sethi","Nimrat"],["Manish Chaudhari","Steve"]],
+ story:"An NRI groom is found dead in a Punjab field days before his wedding, and the two policemen on the case have their own houses quietly falling apart.",
+ people:"Quietly one of the best-reviewed Indian crime shows of recent years — the rural Punjab atmosphere and Suvinder Vicky's lead performance get consistent praise. Slow and melancholy.",
+ why:"Something different from the picks above — a series rather than a film, if you'd rather have something to come back to over a few nights.",
+ reasons:[["🇮🇳","Hindi — originally made in Hindi."],["⭐","IMDb 8.0 from 22K ratings"],
+  ["👥","Reviewers most often praise acting and story"],["📺","Available on Netflix in India"],
+  ["🎬","2020s · Bollywood"],["⏱","45m per episode"],
+  ["💎","Comparatively under-watched, so less likely you have already seen it"],
+  ["✓","Not on your Seen or Not Interested lists"],
+  ["🎯","A deliberate change of pace — crime rather than more of the same."]],
+ brk:[["Ratings quality",24.1,34],["Fits tonight's mood",14.2,18],["Learned taste (confidence-scaled)",0,18],
+  ["Likely undiscovered",11.8,14],["Hindi availability",12,12],["Fits your evening",5,12],
+  ["Critic/audience agreement",5,10],["Review sentiment",8.6,10],["Trending (quality-gated)",1.4,8]],
+ score:82.1},
+
+{slot:"Wildcard",t:"Talvar",y:2015,imdb:"8.1",votes:"32K",rt:null,
+ lang:"hi",langL:"🇮🇳 Hindi",where:"Prime Video",wc:"prime",
+ facts:"Film · 2015 · 2h 12m · 2010s · Bollywood · Crime, Drama, Mystery",
+ cast:[["Irrfan Khan","Ashwin"],["Konkona Sen Sharma","Nutan"],["Neeraj Kabi","Ramesh"],["Sohum Shah","Vedant"]],
+ story:"Three competing accounts of the same double murder investigation, told without telling you which one to believe.",
+ people:"The Rashomon structure and Irrfan Khan's performance are what viewers talk about, along with how restrained the film is with a sensational case. Some find the lack of resolution frustrating.",
+ why:"Not an obvious suggestion, but it clears the bar comfortably and does something no other mystery here does.",
+ reasons:[["🇮🇳","Hindi — originally made in Hindi."],["⭐","IMDb 8.1 from 32K ratings"],
+  ["👥","Reviewers most often praise story and acting"],["📺","Available on Prime Video in India"],
+  ["🎬","2010s · Bollywood"],["⏱","2h 12m"],["✓","Not on your Seen or Not Interested lists"],
+  ["🎯","Pulled from tonight's pool of titles that cleared the quality bar and don't resemble the others."]],
+ brk:[["Ratings quality",25.6,34],["Fits tonight's mood",13.8,18],["Learned taste (confidence-scaled)",0,18],
+  ["Likely undiscovered",10.2,14],["Hindi availability",12,12],["Fits your evening",7,12],
+  ["Critic/audience agreement",5,10],["Review sentiment",8.9,10],["Trending (quality-gated)",0,8]],
+ score:82.5}];
+
+const CONFIRM={watch:"Enjoy it 🍿",seen:"Marked as seen",later:"Saved to Later",no:"Removed — just this title"};
+const SPINE={hi:"var(--hindi)",en:"var(--english)"};
+const DOT={nf:"#E50914",prime:"#00A8E1",jio:"#7C5CFF"};
+const S={mood:null,filters:{},later:0,gone:new Set(),chosen:{},scale:1};
+const $=id=>document.getElementById(id);
+
+$("day").textContent=new Date().toLocaleDateString(undefined,{weekday:"long"});
+
+/* ------------------------------------------------------------- build UI -- */
+$("moods").innerHTML=MOODS.map(m=>`
+  <button class="mood" data-mood="${m.e} ${m.n}" style="--tint:${m.t};--chip:${m.c}">
+    <span class="ico">${m.e}</span><span class="nm">${m.n}</span><span class="hn">${m.h}</span>
+  </button>`).join("")+`
+  <button class="mood wide" data-mood="🎲 Mix everything" style="--tint:rgba(120,120,130,.10);--chip:#EBE8E2">
+    <span class="ico">🎲</span><span class="nm">Mix everything — surprise me</span>
+  </button>`;
+
+$("filters").innerHTML=FILTERS.map(f=>`
+  <h4 class="rule">${f.l}</h4>
+  <div class="chips" data-f="${f.k}">
+    ${f.o.map((o,i)=>`<button class="chip" aria-pressed="${i===0}">${o}</button>`).join("")}
+  </div>`).join("")+`
+  <div class="ffoot">
+    <button class="btn" id="clr">Clear</button>
+    <button class="btn btn-dark" id="apply">Show me picks</button>
+  </div>`;
+
+$("ex").innerHTML=EXAMPLES.map(e=>`<button class="ex">${e}</button>`).join("");
+$("ts").innerHTML=[["Normal",1],["Large",1.15],["Largest",1.3]]
+  .map(([l,v])=>`<button data-scale="${v}" aria-pressed="${v===1}" style="font-size:${12+v*3}px">A<span style="position:absolute;width:1px;height:1px;overflow:hidden">${l}</span></button>`).join("");
+
+/* ---------------------------------------------------------------- wire --- */
+document.querySelectorAll("[data-mood]").forEach(b=>b.onclick=()=>{S.mood=b.dataset.mood;go()});
+$("fbtn").onclick=()=>{const h=$("filters").classList.toggle("hide");$("fbtn").setAttribute("aria-expanded",String(!h))};
+document.querySelectorAll("[data-f] .chip").forEach(c=>c.onclick=()=>{
+  const g=c.parentElement;g.querySelectorAll(".chip").forEach(x=>x.setAttribute("aria-pressed","false"));
+  c.setAttribute("aria-pressed","true");
+  if(g.firstElementChild===c)delete S.filters[g.dataset.f];else S.filters[g.dataset.f]=c.textContent;
+  const n=Object.keys(S.filters).length;$("fcount").textContent=n;$("fcount").classList.toggle("hide",!n);
+});
+$("clr").onclick=()=>{document.querySelectorAll("[data-f]").forEach(g=>
+  g.querySelectorAll(".chip").forEach((c,i)=>c.setAttribute("aria-pressed",String(i===0))));
+  S.filters={};$("fcount").classList.add("hide")};
+$("apply").onclick=()=>{S.mood=S.mood||"🎛 Filtered";go()};
+document.querySelectorAll(".ex").forEach(e=>e.onclick=()=>{$("q").value=e.textContent;S.mood="⌕ "+e.textContent;go()});
+$("q").addEventListener("keydown",e=>{if(e.key==="Enter"&&$("q").value.trim()){S.mood="⌕ "+$("q").value.trim();go()}});
+$("back").onclick=()=>{$("s2").classList.add("hide");$("back").classList.add("hide");
+  $("hero").classList.remove("hide");$("s1").classList.remove("hide");scrollTo(0,0)};
+$("again").onclick=()=>go(1);
+$("missed").onclick=()=>{S.mood="💎 Things you may have missed";go(1)};
+
+$("ts").onclick=e=>{const b=e.target.closest("[data-scale]");if(!b)return;
+  S.scale=+b.dataset.scale;document.documentElement.style.fontSize=(16*S.scale)+"px";
+  $("ts").querySelectorAll("button").forEach(x=>x.setAttribute("aria-pressed",String(+x.dataset.scale===S.scale)))};
+
+/* Follow-up: the strongest signal the app can collect. */
+$("fu").addEventListener("click",e=>{
+  const b=e.target.closest("[data-fu]");if(!b)return;
+  toast({loved:"Noted — more like that",fine:"Thanks",gave:"Noted — fewer like that",
+    never:"Put back in the mix"}[b.dataset.fu]);
+  $("fu").style.transition="opacity .3s, transform .3s, max-height .35s, margin .3s";
+  $("fu").style.overflow="hidden";$("fu").style.maxHeight=$("fu").offsetHeight+"px";
+  requestAnimationFrame(()=>{$("fu").style.opacity="0";$("fu").style.transform="scale(.97)";
+    $("fu").style.maxHeight="0";$("fu").style.marginBottom="0"});
+  setTimeout(()=>$("fu").classList.add("hide"),380);
+});
+
+/* Voice — real Web Speech API where the browser supports it. */
+const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+if(!SR){$("mic").style.display="none"}
+$("mic").onclick=()=>{
+  if(!SR)return;
+  const r=new SR();r.lang="en-IN";r.interimResults=false;r.continuous=false;
+  $("mic").dataset.on="true";
+  r.onresult=ev=>{const t=ev.results?.[0]?.[0]?.transcript;
+    if(t){$("q").value=t.trim();S.mood="⌕ "+t.trim();go()}};
+  r.onend=()=>$("mic").dataset.on="false";
+  r.onerror=()=>{$("mic").dataset.on="false";toast("Couldn't hear that")};
+  r.start();
+};
+
+/* -------------------------------------------------------------- render --- */
+function hue(s){let h=0;for(let i=0;i<s.length;i++)h=(h<<5)-h+s.charCodeAt(i)|0;return Math.abs(h)%360}
+function ini(t){const w=t.replace(/[^\p{L}\p{N}\s]/gu,"").split(/\s+/).filter(Boolean);
+  return w.length===1?w[0].slice(0,2).toUpperCase():(w[0][0]+w[1][0]).toUpperCase()}
+
+/* --------------------------------------------------------- poster art ----
+ * These are drawn, not fetched. With TMDB and OMDb keys the live app shows the
+ * real distributor artwork; this build has no network, so rather than six grey
+ * rectangles each title gets a piece composed for it — palette and motif taken
+ * from the film itself. A poster is the first thing he looks at, so it should
+ * carry tone before he has read a word.
+ */
+const ART={
+"Kahaani":{bg:["#3E0B12","#A62C15"],glow:"#F2A227",ink:"#FFE6BD",m:"durga"},
+"Shutter Island":{bg:["#0A161E","#28454F"],glow:"#8FD4E0",ink:"#D9EEF3",m:"beacon"},
+"Johnny Gaddaar":{bg:["#14110D","#3A2410"],glow:"#E8A020",ink:"#F6DEA8",m:"pulp"},
+"Prisoners":{bg:["#0C1114","#28343A"],glow:"#7E939C",ink:"#D3DDE1",m:"winter"},
+"Kohrra":{bg:["#161A12","#5E5C38"],glow:"#CFC48C",ink:"#EBE5C8",m:"fog"},
+"Talvar":{bg:["#0D181C","#2C494F"],glow:"#CFC2A2",ink:"#EDE6D4",m:"triptych"}};
+
+/* Title lockup: split to two lines so a long name still reads at 104px wide. */
+function lockup(t,ink){
+  const w=t.split(" ");let a=t,b="";
+  if(t.length>10&&w.length>1){const mid=Math.ceil(w.length/2);a=w.slice(0,mid).join(" ");b=w.slice(mid).join(" ")}
+  const size=Math.max(13,Math.min(21,320/Math.max(a.length,b.length,1)));
+  const y=b?250:258;
+  return `<text x="100" y="${y}" fill="${ink}" font-family="Georgia,serif" font-size="${size}"
+    letter-spacing="1.6" text-anchor="middle" opacity=".95">${a.toUpperCase()}</text>`+
+   (b?`<text x="100" y="${y+size+3}" fill="${ink}" font-family="Georgia,serif" font-size="${size}"
+    letter-spacing="1.6" text-anchor="middle" opacity=".95">${b.toUpperCase()}</text>`:"");
+}
+
+function motif(m,a,i){
+  const g=a.glow;
+  if(m==="durga"){ // radiating alpona spokes, a lone figure, marigold scatter
+    const spokes=Array.from({length:22},(_,k)=>{const r=(k*360/22)*Math.PI/180;
+      return `<line x1="100" y1="112" x2="${100+Math.cos(r)*150}" y2="${112+Math.sin(r)*150}"
+        stroke="${g}" stroke-width="${k%2?1:2.4}" opacity="${k%2?.16:.3}"/>`}).join("");
+    const dots=Array.from({length:14},(_,k)=>`<circle cx="${17+((k*53)%168)}" cy="${34+((k*79)%210)}"
+      r="${1.6+(k%3)}" fill="${g}" opacity=".3"/>`).join("");
+    return `<g>${spokes}</g>
+      <circle cx="100" cy="112" r="52" fill="none" stroke="${g}" stroke-width="2.6" opacity=".55"/>
+      <circle cx="100" cy="112" r="34" fill="none" stroke="${g}" stroke-width="1.4" opacity=".38"/>
+      ${dots}
+      <g opacity=".92"><ellipse cx="100" cy="150" rx="11" ry="13" fill="#1B0509"/>
+      <path d="M100 160 C79 168 71 200 68 232 L132 232 C129 200 121 168 100 160Z" fill="#1B0509"/>
+      <path d="M100 163 C112 176 118 205 119 232 L132 232 C129 201 120 170 100 163Z" fill="#57121A" opacity=".85"/></g>`}
+
+  if(m==="beacon"){ // lighthouse cone, rain, cliff
+    const rain=Array.from({length:26},(_,k)=>`<line x1="${(k*31)%210-10}" y1="${(k*47)%290}"
+      x2="${(k*31)%210-2}" y2="${(k*47)%290+22}" stroke="${g}" stroke-width=".9" opacity=".22"/>`).join("");
+    return `<path d="M172 8 L18 176 L200 176 L200 8Z" fill="${g}" opacity=".13"/>
+      <path d="M172 8 L74 176 L152 176 L200 40 L200 8Z" fill="${g}" opacity=".13"/>
+      <circle cx="172" cy="16" r="13" fill="${g}" opacity=".62"/>
+      <circle cx="172" cy="16" r="26" fill="${g}" opacity=".16"/>
+      ${rain}
+      <path d="M0 214 L36 196 L72 210 L112 188 L150 206 L200 190 L200 300 L0 300Z" fill="#050B0E"/>
+      <path d="M0 232 L48 218 L104 234 L162 216 L200 228 L200 300 L0 300Z" fill="#020608" opacity=".9"/>
+      <g fill="#020608"><ellipse cx="112" cy="180" rx="3.6" ry="4.2"/>
+      <path d="M112 185 c-6 3 -8 12 -9 22 l18 0 c-1 -10 -3 -19 -9 -22Z"/></g>`}
+
+  if(m==="pulp"){ // 70s noir: barrel rings, hard diagonal, halftone, a man with a case
+    // Halftone anchored bottom-left and falling off diagonally, the way a
+    // screen-printed poster of the period actually decays.
+    const half=Array.from({length:88},(_,k)=>{const cx=8+(k%11)*18,cy=150+Math.floor(k/11)*18;
+      const d=1-Math.min(1,(cx/200*.6+(cy-150)/144*.4));
+      return `<circle cx="${cx}" cy="${cy}" r="${(1+d*3.4).toFixed(2)}" fill="${g}" opacity="${(.1+d*.24).toFixed(2)}"/>`}).join("");
+    return `<path d="M-20 96 L220 22 L220 62 L-20 136Z" fill="${a.bg[1]}" opacity=".9"/>
+      <path d="M-20 100 L220 26 L220 34 L-20 108Z" fill="${g}" opacity=".85"/>
+      <circle cx="134" cy="78" r="44" fill="none" stroke="${g}" stroke-width="7" opacity=".8"/>
+      <circle cx="134" cy="78" r="29" fill="none" stroke="${g}" stroke-width="2.4" opacity=".5"/>
+      <circle cx="134" cy="78" r="14" fill="#0B0906"/>
+      ${half}
+      <g fill="#0B0906">
+        <path d="M46 148 c0 -8 6 -14 13 -14 s13 6 13 14 -6 14 -13 14 -13 -6 -13 -14Z"/>
+        <path d="M43 132 h32 v6 h-32Z"/>
+        <path d="M59 163 c-13 0 -19 12 -21 28 l-4 41 h14 l3 -30 v30 h16 v-30 l3 30 h14 l-4 -41 c-2 -16 -8 -28 -21 -28Z"/>
+        <rect x="82" y="196" width="21" height="16" rx="2.5"/>
+        <path d="M85 196 v-7 h15 v7" stroke="#0B0906" stroke-width="2.6" fill="none"/>
+        <path d="M78 178 l6 20" stroke="#0B0906" stroke-width="6" stroke-linecap="round"/></g>`}
+
+  if(m==="winter"){ // bare trees, sleet, two figures far apart
+    const tree=(x,s)=>`<g opacity=".95" transform="translate(${x} 300) scale(${s})">
+      <path d="M0 0 L-3 -108 L3 -108 L2 0Z" fill="#05090B"/>
+      <path d="M-1 -70 L-26 -96 M1 -74 L24 -100 M-1 -88 L-18 -112 M1 -92 L20 -116 M0 -100 L-11 -124 M1 -102 L13 -126"
+        stroke="#05090B" stroke-width="3.4" fill="none" stroke-linecap="round"/></g>`;
+    const sleet=Array.from({length:34},(_,k)=>`<line x1="${(k*37)%206}" y1="${(k*61)%296}"
+      x2="${(k*37)%206+5}" y2="${(k*61)%296+15}" stroke="${g}" stroke-width=".9" opacity=".26"/>`).join("");
+    return `<rect y="150" width="200" height="150" fill="${g}" opacity=".1"/>
+      ${tree(30,1.05)}${tree(78,.72)}${tree(128,1.18)}${tree(178,.86)}
+      ${sleet}
+      <rect y="236" width="200" height="64" fill="#05090B" opacity=".62"/>
+      <g fill="#05090B"><ellipse cx="58" cy="228" rx="3.4" ry="4"/>
+      <path d="M58 233 c-5.5 2.6 -7.5 12 -8.4 21 l16.8 0 c-.9 -9 -2.9 -18.4 -8.4 -21Z"/>
+      <ellipse cx="152" cy="222" rx="2.8" ry="3.4"/>
+      <path d="M152 226 c-4.6 2.2 -6.3 10 -7 17.6 l14 0 c-.7 -7.6 -2.4 -15.4 -7 -17.6Z"/></g>`}
+
+  if(m==="fog"){ // flat Punjab field under lifting mist, one distant figure
+    const bands=Array.from({length:7},(_,k)=>`<rect y="${118+k*22}" width="200" height="${9+k*1.6}"
+      fill="${a.ink}" opacity="${.07+k*.028}"/>`).join("");
+    const crop=Array.from({length:46},(_,k)=>`<line x1="${(k*23)%204}" y1="${228+((k*17)%22)}"
+      x2="${(k*23)%204+2}" y2="${212+((k*17)%22)}" stroke="#1A1D12" stroke-width="1.5" opacity=".55"/>`).join("");
+    return `<circle cx="142" cy="86" r="30" fill="${g}" opacity=".2"/>
+      <circle cx="142" cy="86" r="15" fill="${g}" opacity=".34"/>
+      <rect y="204" width="200" height="96" fill="#20240F" opacity=".82"/>
+      ${crop}
+      <g fill="#0E1109"><ellipse cx="70" cy="192" rx="3" ry="3.6"/>
+      <path d="M70 196 c-5 2.4 -6.8 11 -7.6 19.4 l15.2 0 c-.8 -8.4 -2.6 -17 -7.6 -19.4Z"/></g>
+      ${bands}
+      <rect width="200" height="300" fill="${a.ink}" opacity=".05"/>`}
+
+  // triptych — one case, three accounts. A triple exposure of the same bust,
+  // offset and fading, with the blade of the title down the centre.
+  const bust=(x,y,o,s)=>`<g opacity="${o}" transform="translate(${x} ${y}) scale(${s})" fill="none"
+    stroke="${a.ink}" stroke-width="2.4" stroke-linecap="round">
+    <path d="M0 -34 c13 0 22 11 22 25 0 15 -10 27 -22 27 s-22 -12 -22 -27 c0 -14 9 -25 22 -25Z"/>
+    <path d="M-40 74 c2 -26 16 -42 40 -42 s38 16 40 42"/></g>`;
+  return `<rect x="66" width="1.6" height="300" fill="${a.ink}" opacity=".18"/>
+    <rect x="132" width="1.6" height="300" fill="${a.ink}" opacity=".18"/>
+    ${bust(66,132,.3,.94)}${bust(134,132,.3,.94)}${bust(100,124,.82,1.06)}
+    <path d="M99 26 L101 26 L102.6 168 L100 180 L97.4 168Z" fill="${g}" opacity=".92"/>
+    <rect x="92" y="178" width="16" height="4.4" rx="2.2" fill="${g}" opacity=".92"/>
+    <rect x="97.6" y="182" width="4.8" height="20" rx="1.4" fill="${g}" opacity=".72"/>
+    <circle cx="100" cy="205" r="3.4" fill="${g}" opacity=".72"/>`;
+}
+
+function posterSVG(p,i){
+  const a=ART[p.t]||{bg:["#20242A","#3A424C"],glow:"#C7B48A",ink:"#EDE8DC",m:"triptych"};
+  return `<svg class="art" viewBox="0 0 200 300" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+    <defs>
+      <linearGradient id="bg${i}" x1="0" y1="0" x2=".3" y2="1">
+        <stop offset="0" stop-color="${a.bg[0]}"/><stop offset="1" stop-color="${a.bg[1]}"/></linearGradient>
+      <radialGradient id="gl${i}" cx=".5" cy=".3" r=".7">
+        <stop offset="0" stop-color="${a.glow}" stop-opacity=".34"/>
+        <stop offset="1" stop-color="${a.glow}" stop-opacity="0"/></radialGradient>
+      <linearGradient id="sc${i}" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stop-color="#000" stop-opacity="0"/>
+        <stop offset=".62" stop-color="#000" stop-opacity=".55"/>
+        <stop offset="1" stop-color="#000" stop-opacity=".88"/></linearGradient>
+      <radialGradient id="vg${i}" cx=".5" cy=".45" r=".78">
+        <stop offset=".55" stop-color="#000" stop-opacity="0"/>
+        <stop offset="1" stop-color="#000" stop-opacity=".5"/></radialGradient>
+    </defs>
+    <rect width="200" height="300" fill="url(#bg${i})"/>
+    <rect width="200" height="300" fill="url(#gl${i})"/>
+    ${motif(a.m,a,i)}
+    <rect y="150" width="200" height="150" fill="url(#sc${i})"/>
+    <rect width="200" height="300" fill="url(#vg${i})"/>
+    <line x1="26" y1="228" x2="174" y2="228" stroke="${a.ink}" stroke-width="1" opacity=".4"/>
+    ${lockup(p.t,a.ink)}
+    <text x="100" y="284" fill="${a.ink}" font-family="Helvetica,Arial,sans-serif" font-size="11"
+      letter-spacing="3.4" text-anchor="middle" opacity=".62">${p.y}</text>
+  </svg>`;
+}
+
+function castHTML(c){return c.map(([n,r])=>{const h=hue(n);
+  return `<div class="cm"><div class="face" style="background:linear-gradient(150deg,hsl(${h} 44% 54%),hsl(${(h+34)%360} 40% 38%))">${ini(n)}</div>
+  <div class="n">${n}</div><div class="r">${r}</div></div>`}).join("")}
+
+function actionsHTML(i){
+  if(S.chosen[i])return `<div class="chosenbar" data-a="${i}">
+    <span class="m">▶ Watching this tonight</span><button class="u" data-undo="${i}">Undo</button></div>`;
+  return `<div class="acts" data-a="${i}">
+    <button class="btn btn-dark" data-act="watch" data-i="${i}">▶ Watch this tonight</button>
+    <div class="arow">
+      <button class="btn" data-act="seen" data-i="${i}">✓ Seen it</button>
+      <button class="btn" data-act="later" data-i="${i}">🕐 Later</button>
+      <button class="btn" data-act="no" data-i="${i}">✕ Not for me</button>
+    </div></div>`}
+
+function cardHTML(p,i,n){
+  const rt=p.rt!==null?`<span class="sp">🍅 Critics <b>${p.rt}%</b></span>`
+    :`<span class="sp na">🍅 Critics — not available</span>`;
+  return `<article class="card pick${S.chosen[i]?" chosen":""}" data-c="${i}" style="animation-delay:${n*70}ms">
+    <span class="spine" style="background:${SPINE[p.lang]}"></span>
+    <div class="ptop">
+      <span class="num">${n+1}</span><span class="slot">${p.slot}</span>
+      ${p.exc?`<span class="exc">${p.exc}</span>`:""}
+    </div>
+    <div class="pmain">
+      <div class="poster">${posterSVG(p,i)}<span class="grain"></span><span class="gloss"></span></div>
+      <div class="pinfo">
+        <h3>${p.t}</h3>
+        <div class="meta">${p.y}</div>
+        <div class="plate"><span class="st">⭐</span><span class="sc">${p.imdb}</span>
+          <span class="of">/10</span><span class="vt">${p.votes}</span></div>
+        <div class="badges">
+          <span class="bdg ${p.lang==="hi"?"hi":"en"}">${p.langL}</span>
+          <span class="bdg"><i style="background:${DOT[p.wc]}"></i>${p.where}</span>
+        </div>
+      </div>
+    </div>
+    <button class="more" aria-expanded="false" data-m="${i}">Read more <span class="cv">▼</span></button>
+    <div class="det" data-d="${i}">
+      <div class="blk"><p class="facts">${p.facts}</p></div>
+      <div class="blk"><h4 class="rule">Ratings</h4><div class="scores">
+        <span class="sp">⭐ IMDb <b>${p.imdb}</b> · ${p.votes} ratings</span>${rt}
+        <span class="sp na">🍿 Audience — not available</span></div></div>
+      <div class="blk"><h4 class="rule">What it's about</h4><p>${p.story}</p></div>
+      <div class="blk"><h4 class="rule">Cast</h4><div class="cast">${castHTML(p.cast)}</div></div>
+      <div class="blk"><h4 class="rule">What people are saying</h4><p>${p.people}</p></div>
+      <div class="blk"><h4 class="rule">Why we picked this</h4><p>${p.why}</p>
+        <button class="btn" style="margin-top:12px;padding:0 15px" data-why="${i}">See the full reasoning</button></div>
+      <div class="blk"><button class="btn" style="padding:0 15px" data-sim="${i}">🎬 Find more like this</button></div>
+    </div>
+    ${actionsHTML(i)}
+  </article>`}
+
+function render(){
+  const vis=PICKS.map((p,i)=>({p,i})).filter(({i})=>!S.gone.has(i));
+  $("cards").innerHTML=vis.map(({p,i},n)=>cardHTML(p,i,n)).join("");
+  $("sub").textContent=`${vis.length} pick${vis.length===1?"":"s"} · Hindi first, English only where it earns it`;
+  $("alldone").classList.toggle("hide",vis.length>0);
+  wire();
+}
+
+function toast(m){const t=$("toast");t.textContent=m;t.classList.add("on");
+  clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove("on"),1900)}
+
+function drop(i){const n=Number(i),el=document.querySelector(`[data-c="${n}"]`);if(!el)return;
+  el.classList.add("out");setTimeout(()=>{S.gone.add(n);render()},400)}
+
+function sheet(i){
+  const p=PICKS[i];
+  $("sheetBody").innerHTML=`
+    <div class="hd"><div class="grab"></div>
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px">
+        <div><div class="rule" style="margin:0">Why this?</div><h3>${p.t}</h3></div>
+        <button class="btn" style="padding:0 15px;min-height:44px" id="close">Close</button>
+      </div></div>
+    <ul class="reasons">${p.reasons.map(([i2,t])=>`<li><span class="i">${i2}</span><span>${t}</span></li>`).join("")}</ul>
+    <div style="padding:18px 20px 0"><div class="rule">Score breakdown</div></div>
+    <div class="brk">
+      <div class="lab" style="margin-bottom:12px"><span>Total</span><b style="font-size:1.15rem">${p.score}</b></div>
+      ${p.brk.map(([l,v,m])=>`<div class="row"><div class="lab"><span>${l}</span><b>${v}<span style="color:var(--ink-3);font-weight:400">/${m}</span></b></div>
+        <div class="track"><div class="fill" style="width:${Math.max(0,Math.min(100,v/m*100))}%"></div></div></div>`).join("")}
+    </div>
+    <p style="margin:18px 20px 0;font-size:.76rem;line-height:1.6;color:var(--ink-3)">
+      Reception summary derived from published viewer reviews, with themes extracted before
+      any prose was written — the model was never asked what people think, only to phrase
+      what they wrote.</p>`;
+  $("sheet").classList.remove("hide");document.body.style.overflow="hidden";
+  $("close").onclick=closeSheet;
+}
+function closeSheet(){$("sheet").classList.add("hide");document.body.style.overflow=""}
+$("scrim").onclick=closeSheet;
+addEventListener("keydown",e=>{if(e.key==="Escape")closeSheet()});
+
+function wire(){
+  document.querySelectorAll("[data-m]").forEach(b=>b.onclick=()=>{
+    const i=b.dataset.m,o=document.querySelector(`[data-d="${i}"]`).classList.toggle("on");
+    b.setAttribute("aria-expanded",String(o));b.firstChild.textContent=o?"Show less ":"Read more "});
+  document.querySelectorAll("[data-why]").forEach(b=>b.onclick=()=>sheet(+b.dataset.why));
+  document.querySelectorAll("[data-sim]").forEach(b=>b.onclick=()=>toast("Finding titles like this one…"));
+  document.querySelectorAll("[data-act]").forEach(b=>b.onclick=()=>{
+    const i=b.dataset.i,a=b.dataset.act;toast(CONFIRM[a]);
+    if(a==="watch"){S.chosen[Number(i)]=true;render();return}
+    if(a==="later"){S.later++;$("pip").textContent=S.later;$("pip").classList.remove("hide")}
+    drop(i)});
+  document.querySelectorAll("[data-undo]").forEach(b=>b.onclick=()=>{delete S.chosen[Number(b.dataset.undo)];render()});
+}
+
+const STEPS=["Removing everything you've already seen","Checking ratings and reviews",
+ "Looking for Hindi and Hindi dubbed versions","Keeping only what's genuinely worth it"];
+
+function go(regen){
+  S.gone=new Set();S.chosen={};
+  $("s1").classList.add("hide");$("s2").classList.add("hide");$("hero").classList.add("hide");
+  $("load").classList.remove("hide");$("kick").textContent=S.mood||"🎲 Mix everything";scrollTo(0,0);
+  let k=0;$("lstep").textContent=STEPS[0];
+  const t=setInterval(()=>{k=(k+1)%STEPS.length;$("lstep").textContent=STEPS[k]},400);
+  setTimeout(()=>{clearInterval(t);$("load").classList.add("hide");
+    $("s2").classList.remove("hide");$("back").classList.remove("hide");render()},regen?900:1300);
+}
+</script>
+</body>
+</html>

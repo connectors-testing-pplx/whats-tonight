@@ -1,0 +1,13 @@
+{
+  "name": "What's Tonight?",
+  "short_name": "Tonight",
+  "description": "Four to six things worth watching tonight.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#F6F4F0",
+  "theme_color": "#F6F4F0",
+  "orientation": "portrait",
+  "icons": [
+    { "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+  ]
+}

@@ -1,0 +1,225 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ---------------------------------------------------------------------------
+   MOBILE WEB — iOS Safari and Android Chrome
+
+   This runs in a phone browser, not a native shell, and the two engines have
+   different sharp edges. Everything below is here for a specific one:
+
+   · 16px minimum on every input. iOS Safari force-zooms the whole page when a
+     focused input is under 16px, and there is no way back out. This is the
+     single most common reason a mobile web app feels broken on iPhone.
+   · 100dvh, not 100vh. Both browsers hide and show the URL bar as you scroll;
+     100vh measures the tallest state, so a bottom bar sits under the chrome.
+   · env(safe-area-inset-*) with viewport-fit=cover for the iPhone home
+     indicator and Android gesture bar.
+   · -webkit-tap-highlight-color removed — the default is a grey flash that
+     makes every tap look like a mis-tap.
+   · overscroll-behavior-y: none stops Chrome's pull-to-refresh firing when he
+     scrolls up past the top of a card list.
+   · -webkit-overflow-scrolling for momentum in the horizontal chip rows.
+   · text-size-adjust pinned so Android Chrome's font boosting doesn't silently
+     resize body copy inside flex containers.
+   · No :hover-only affordances. Touch devices have no hover, and a sticky
+     hover state after a tap looks like a stuck button.
+------------------------------------------------------------------------- */
+
+@layer base {
+  :root {
+    --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
+      'Helvetica Neue', Arial, sans-serif;
+    --font-display: 'Iowan Old Style', 'Palatino Linotype', Palatino, Georgia,
+      'Times New Roman', serif;
+  }
+
+  html {
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+    /* Chrome pull-to-refresh fires far too easily inside a scrolling card list. */
+    overscroll-behavior-y: none;
+  }
+
+  body {
+    @apply bg-canvas text-ink antialiased;
+    font-family: var(--font-sans);
+    font-size: 16px;
+    line-height: 1.55;
+    margin: 0;
+    min-height: 100dvh;
+    -webkit-tap-highlight-color: transparent;
+    overscroll-behavior-y: none;
+  }
+
+  /* iOS zooms the page if a focused field is under 16px. Non-negotiable. */
+  input,
+  textarea,
+  select,
+  button {
+    font-family: inherit;
+    font-size: 16px;
+  }
+
+  input[type='search'] {
+    -webkit-appearance: none;
+    appearance: none;
+  }
+  input[type='search']::-webkit-search-decoration,
+  input[type='search']::-webkit-search-cancel-button {
+    -webkit-appearance: none;
+  }
+
+  button {
+    touch-action: manipulation; /* removes the 300ms double-tap-zoom delay */
+    color: inherit;
+    background: none;
+    border: none;
+    cursor: pointer;
+  }
+
+  ::selection {
+    background: rgba(201, 118, 31, 0.22);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+}
+
+@layer components {
+  .shell {
+    @apply mx-auto w-full px-5;
+    max-width: 448px;
+  }
+
+  .card {
+    @apply relative overflow-hidden rounded-card border border-line bg-surface shadow-card;
+  }
+
+  /* Every tap target routes through one of these. 48px is the floor; the
+     primary actions are 54-56px because they get tapped without looking. */
+  .tap {
+    @apply inline-flex select-none items-center justify-center gap-2 rounded-xl
+           font-medium transition-transform duration-150;
+    min-height: 48px;
+    touch-action: manipulation;
+  }
+  .tap:active {
+    transform: scale(0.97);
+  }
+
+  .tap-primary {
+    @apply tap text-white;
+    background: linear-gradient(135deg, #23262d, #14161a);
+    box-shadow: 0 1px 2px rgba(22, 24, 29, 0.06), 0 12px 26px -14px rgba(22, 24, 29, 0.5);
+  }
+
+  .tap-quiet {
+    @apply tap border border-line bg-surface text-ink;
+  }
+
+  .tap-ghost {
+    @apply tap text-accent;
+  }
+
+  .chip {
+    @apply inline-flex select-none items-center gap-1.5 rounded-full border border-line
+           bg-surface px-3.5 text-[15px] text-ink-2 transition-colors;
+    min-height: 44px;
+    touch-action: manipulation;
+  }
+  .chip[aria-pressed='true'] {
+    @apply border-accent bg-accent-soft font-semibold text-accent;
+  }
+
+  .label {
+    @apply text-[11.5px] font-bold uppercase tracking-[0.11em] text-ink-3;
+  }
+
+  /* Section heading with a hairline that fills the remaining width. */
+  .rule-heading {
+    @apply label flex items-center gap-2;
+  }
+  .rule-heading::after {
+    content: '';
+    @apply h-px flex-1 bg-line-2;
+  }
+
+  .badge {
+    @apply inline-flex items-center gap-1.5 rounded-lg bg-surface-2 px-2.5 py-1.5
+           text-[13px] font-semibold text-ink-2;
+  }
+  .badge-hindi {
+    @apply bg-hindi-soft text-hindi;
+  }
+  .badge-english {
+    @apply bg-english-soft text-english;
+  }
+
+  .field {
+    @apply w-full rounded-card border border-line bg-surface px-4 text-ink
+           placeholder:text-ink-3;
+    min-height: 56px;
+    font-size: 16px;
+  }
+  .field:focus {
+    @apply border-accent-2 outline-none;
+  }
+}
+
+@layer utilities {
+  /* Bottom bar clears the iPhone home indicator and Android gesture bar. */
+  .safe-bottom {
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  .safe-top {
+    padding-top: env(safe-area-inset-top, 0px);
+  }
+  /* Content above a fixed bottom nav. */
+  .pad-nav {
+    padding-bottom: calc(96px + env(safe-area-inset-bottom, 0px));
+  }
+
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .text-balance {
+    text-wrap: balance;
+  }
+
+  .animate-rise {
+    animation: rise 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+  .animate-leave {
+    animation: leave 0.42s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  }
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+}
+
+@keyframes leave {
+  to {
+    opacity: 0;
+    transform: translateX(-26px) scale(0.95);
+    max-height: 0;
+    margin-bottom: 0;
+  }
+}
