@@ -49,7 +49,7 @@ Four interfaces in `src/lib/providers/types.ts`:
 | `ReviewProvider` | What did people say about it? | TMDB reviews + summariser |
 | `StreamingProvider` | Where can he watch it? | TMDB watch/providers |
 
-`registry.ts` decides which adapters are live, merges their output, and falls
+`src/lib/providers/registry.ts` decides which adapters are live, merges their output, and falls
 back to the seed catalogue when something is unconfigured or down.
 
 The merge rule is one line and it matters: **a real value wins, and `null` never
@@ -75,7 +75,7 @@ Only the top 24 get the expensive treatment — ratings lookups, review
 retrieval, availability confirmation. Enriching all 120 to display 4 would burn
 the OMDb daily quota in a handful of page loads.
 
-### 3. Filter (`filter.ts`)
+### 3. Filter (`src/lib/engine/filter.ts`)
 Hard yes/no gates. Removes anything marked seen, anything ruled out, anything
 not on a subscribed platform, anything shown in the last 21 days, anything in
 the Maybe Later cooldown, anything below the quality floor, anything that
@@ -87,7 +87,7 @@ candidate, no matter what he's tapped.
 If the filters leave fewer than four candidates, the *softest* constraint (how
 recently something was shown) is relaxed first — never a hard rule.
 
-### 4. Rank (`rank.ts`)
+### 4. Rank (`src/lib/engine/rank.ts`)
 A weighted sum, every component stored in the breakdown so `/admin` and "Why
 this?" can show their working:
 
@@ -105,7 +105,7 @@ The vote-count discount is the interesting one. An 8.6 from 900 votes gets
 pulled back towards the middle; an 8.2 from 400,000 does not. A rating without
 a crowd behind it is a rumour.
 
-### 5. Diversify (`diversify.ts`, `slots.ts`)
+### 5. Diversify (`src/lib/engine/diversify.ts`, `src/lib/engine/slots.ts`)
 Maximal marginal relevance: each pick is scored on quality *minus* how much it
 resembles what's already been chosen. Similarity is a weighted blend of genre
 overlap, language, type, era and platform.
@@ -123,7 +123,7 @@ from one list:
   pre-filtered on quality and dissimilarity. "Different" is never an excuse for
   "bad."
 
-### 6. Explain (`explain.ts`)
+### 6. Explain (`src/lib/engine/explain.ts`)
 Builds the one-line "Why we picked this" and the itemised "Why this?" list.
 Every line corresponds to a fact already on the title object. If the fact is
 missing, the line is absent. There is no template that says "critically

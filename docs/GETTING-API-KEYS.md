@@ -105,7 +105,7 @@ that nobody actually computed.
 
 If you ever do get licensed RT access, the fix is one file:
 `src/lib/providers/` — implement the `RatingProvider` interface against it and
-register it ahead of OMDb in `registry.ts`. Nothing else in the codebase needs
+register it ahead of OMDb in `src/lib/providers/registry.ts`. Nothing else in the codebase needs
 to change.
 
 ---
