@@ -53,7 +53,9 @@ export function RecommendationCard({
 }) {
   const [open, setOpen] = useState(false);
   const [showWhy, setShowWhy] = useState(false);
+  const [showBadge, setShowBadge] = useState(false);
   const { title, slot, whyWePicked, languageException } = recommendation;
+  const consensus = recommendation.consensus;
   const slotMeta = SLOTS.find((s) => s.id === slot);
   const lang = LANGUAGE_LABELS[title.viewingLanguage];
   const spine = lang.tone === 'good' ? '#0C7355' : '#6D4FA8';
@@ -110,9 +112,44 @@ export function RecommendationCard({
             {title.releaseYear != null && (
               <p className="mt-0.5 text-[13.5px] text-ink-3">{title.releaseYear}</p>
             )}
-            <div className="mt-2.5">
+            <div className="mt-2.5 flex flex-wrap items-center gap-2">
               <RatingPlate title={title} />
+              {consensus && (
+                <button
+                  type="button"
+                  onClick={() => setShowBadge((v) => !v)}
+                  aria-expanded={showBadge}
+                  aria-controls={`why-badge-${title.id}`}
+                  className="inline-flex min-h-[36px] items-center gap-1.5 rounded-full border px-2.5 py-1.5 text-[12.5px] font-semibold"
+                  style={{
+                    background: '#E9F3F0',
+                    borderColor: 'rgba(16,120,98,.28)',
+                    color: '#0E6E58',
+                  }}
+                >
+                  <span aria-hidden>{consensus.emoji}</span>
+                  {consensus.text}
+                </button>
+              )}
             </div>
+            {showBadge && consensus && (
+              <div
+                id={`why-badge-${title.id}`}
+                className="mt-2 rounded-xl border border-line-2 bg-surface-2 px-3.5 py-3 text-[14px] leading-relaxed text-ink-2"
+              >
+                <p className="text-ink">{consensus.explanation}</p>
+                {consensus.basis.length > 0 && (
+                  <ul className="mt-2 space-y-1 text-[13px] text-ink-3">
+                    {consensus.basis.map((b) => (
+                      <li key={b} className="flex gap-2">
+                        <span aria-hidden>·</span>
+                        <span>{b}</span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            )}
             <div className="mt-2.5 flex flex-wrap gap-1.5">
               <LanguageBadge title={title} />
               <ProviderBadges availability={title.availability} />

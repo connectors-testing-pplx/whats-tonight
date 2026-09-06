@@ -566,6 +566,7 @@ export interface Consensus {
   label: ConsensusLabel;
   text: string;
   emoji: string;
+  explanation: string;
   basis: string[];
 }
 
