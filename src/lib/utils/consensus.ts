@@ -16,13 +16,43 @@ import { formatCount } from './format';
  * card simply doesn't show a badge.
  */
 
-const LABEL_TEXT: Record<ConsensusLabel, { text: string; emoji: string }> = {
-  'strongly-recommended': { text: 'Strongly Recommended', emoji: '⭐' },
-  'critically-acclaimed': { text: 'Critically Acclaimed', emoji: '🏆' },
-  'audience-favourite': { text: 'Audience Favourite', emoji: '🍿' },
-  'highly-rated': { text: 'Highly Rated', emoji: '⭐' },
-  'worth-a-try': { text: 'Worth a Try', emoji: '👍' },
-  'mixed-reception': { text: 'Mixed Reception', emoji: '⚖️' },
+const LABEL_TEXT: Record<ConsensusLabel, { text: string; emoji: string; explanation: string }> = {
+  'strongly-recommended': {
+    text: 'Strongly Recommended',
+    emoji: '⭐',
+    explanation:
+      'Critics and audiences both rate this highly, and the ratings come from a large number of votes. This is the strongest call the app makes.',
+  },
+  'critically-acclaimed': {
+    text: 'Critically Acclaimed',
+    emoji: '🏆',
+    explanation:
+      'Critics scored this 88% or higher on Rotten Tomatoes. It is well regarded by reviewers, even where the audience vote count is smaller.',
+  },
+  'audience-favourite': {
+    text: 'Audience Favourite',
+    emoji: '🍿',
+    explanation:
+      'Audiences scored this 85% or higher on Rotten Tomatoes, where critics were more measured.',
+  },
+  'highly-rated': {
+    text: 'Highly Rated',
+    emoji: '⭐',
+    explanation:
+      'A high IMDb rating backed by a large number of votes — strong, but without the critics’ agreement that would make it a top pick.',
+  },
+  'worth-a-try': {
+    text: 'Worth a Try',
+    emoji: '👍',
+    explanation:
+      'Solid scores, but the evidence is thinner or the reception a little divided — a reasonable bet, not a sure thing.',
+  },
+  'mixed-reception': {
+    text: 'Mixed Reception',
+    emoji: '⚖️',
+    explanation:
+      'Critics and audiences disagree, or the scores are modest. It is worth reading the reception before committing.',
+  },
 };
 
 /** 0 (no idea) to 1 (very well established). */
