@@ -1,0 +1,175 @@
+# error-triage.yml — automatic error triage pipeline.
+#
+# Three triggers, one goal: open (or update) a GitHub issue whenever a
+# deployment fails or a critical JavaScript error is detected in production,
+# including the stack trace, session data, and the specific commit ID
+# responsible for the regression.
+#
+# Triggers
+#   1. workflow_run  — fires when the Deploy workflow finishes. If the deploy
+#      failed, we open an issue with the build/deploy error and the commit.
+#   2. repository_dispatch — fires when a Sentry webhook posts a critical
+#      issue. The webhook payload (issue + latest event) is handed to the
+#      triage script, which opens an issue with the stack trace, session
+#      replay link, and the release = commit SHA.
+#   3. schedule      — a safety-net poll every 15 minutes that catches any
+#      unresolved high-priority Sentry issue that the webhook missed.
+#
+# All three converge on scripts/sentry-triage.mjs, which dedupes by a hidden
+# marker so the same Sentry issue never produces two GitHub issues.
+name: Error triage
+
+on:
+  workflow_run:
+    workflows: ['Deploy']
+    types: [completed]
+
+  repository_dispatch:
+    types: [sentry-critical-error]
+
+  schedule:
+    # Every 15 minutes. GitHub Actions cron is UTC.
+    - cron: '*/15 * * * *'
+
+  workflow_dispatch:
+    inputs:
+      poll_period:
+        description: 'Sentry stats period to poll (e.g. 15m, 1h, 24h)'
+        required: false
+        default: '15m'
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  # -------------------------------------------------------------------------
+  # Job 1 — deployment failure. Runs only when the Deploy workflow FAILED.
+  # -------------------------------------------------------------------------
+  triage-deploy-failure:
+    name: Triage deployment failure
+    if: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'failure' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download deploy workflow logs
+        uses: actions/download-artifact@v4
+        with:
+          run-id: ${{ github.event.workflow_run.id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+        continue-on-error: true
+
+      - name: Build deployment-failure issue body
+        id: body
+        env:
+          SHA: ${{ github.event.workflow_run.head_sha }}
+          REPO: ${{ github.repository }}
+          RUN_URL: ${{ github.event.workflow_run.html_url }}
+          BRANCH: ${{ github.event.workflow_run.head_branch }}
+          ACTOR: ${{ github.event.workflow_run.actor }}
+        run: |
+          # Try to grab any failure log we downloaded above.
+          LOGS="(No build logs could be downloaded. See the run link below.)"
+          if [ -d . ]; then
+            LOGS_FILE=$(find . -maxdepth 4 -type f -iname '*.log' 2>/dev/null | head -1 || true)
+            if [ -n "$LOGS_FILE" ] && [ -f "$LOGS_FILE" ]; then
+              LOGS=$(tail -c 60000 "$LOGS_FILE" | sed 's/```/\`/g' | head -c 60000)
+            fi
+          fi
+
+          SHORT="${SHA:0:7}"
+          {
+            echo "body<<EOF"
+            echo "### Deployment failure detected"
+            echo ""
+            echo "The \`Deploy\` workflow failed for commit \`${SHA}\` on branch \`${BRANCH}\`."
+            echo ""
+            echo "### Responsible commit"
+            echo "Regression introduced in [${SHORT}](${COMMIT_URL:-https://github.com/${REPO}/commit/${SHA}}) — pushed by @${ACTOR}."
+            echo ""
+            echo "### Workflow run"
+            echo "- **Run:** [${RUN_URL}](${RUN_URL})"
+            echo "- **Commit:** [${SHA}](https://github.com/${REPO}/commit/${SHA})"
+            echo "- **Branch:** \`${BRANCH}\`"
+            echo ""
+            echo "### Build / deploy log (tail)"
+            echo ""
+            echo '```'
+            echo "$LOGS"
+            echo '```'
+            echo ""
+            echo "---"
+            echo "_Auto-filed by the \`error-triage\` GitHub Action. Do not remove the marker below._"
+            echo "<!-- deploy-failure:${SHA} -->"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+        env:
+          COMMIT_URL: https://github.com/${{ github.repository }}/commit/${{ github.event.workflow_run.head_sha }}
+
+      - name: Look for an existing issue for this commit
+        id: exists
+        env:
+          REPO: ${{ github.repository }}
+          SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          num=$(gh issue list --repo "$REPO" --state all \
+                --search "in:body \"<!-- deploy-failure:${SHA} -->\"" \
+                --json number --limit 1 --jq '.[0].number // empty' || true)
+          echo "number=$num" >> "$GITHUB_OUTPUT"
+
+      - name: Create issue
+        if: steps.exists.outputs.number == ''
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+        run: |
+          gh issue create --repo "$REPO" \
+            --title "🚨 Deployment failure @ ${SHA:0:7}" \
+            --body "${{ steps.body.outputs.body }}" \
+            --label "deploy-failure,sentry-triage" \
+            --assignee "@${{ github.event.workflow_run.actor }}"
+
+      - name: Comment on existing issue
+        if: steps.exists.outputs.number != ''
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          NUMBER: ${{ steps.exists.outputs.number }}
+        run: |
+          gh issue comment "$NUMBER" --repo "$REPO" \
+            --body "Deployment failed again for this commit. See the [latest workflow run](${{ github.event.workflow_run.html_url }})."
+
+  # -------------------------------------------------------------------------
+  # Job 2 — Sentry critical JS error (webhook + scheduled poll).
+  # -------------------------------------------------------------------------
+  triage-sentry-error:
+    name: Triage Sentry critical error
+    if: ${{ github.event_name == 'repository_dispatch' || github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' }}
+    runs-on: ubuntu-latest
+    env:
+      SENTRY_ORG: ${{ secrets.SENTRY_ORG }}
+      SENTRY_PROJECT: ${{ secrets.SENTRY_PROJECT }}
+      SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+      SENTRY_POLL_PERIOD: ${{ github.event.inputs.poll_period || '15m' }}
+      GITHUB_REPOSITORY: ${{ github.repository }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Write webhook payload (repository_dispatch only)
+        if: ${{ github.event_name == 'repository_dispatch' }}
+        run: |
+          mkdir -p /tmp/triage
+          echo '${{ toJson(github.event.client_payload) }}' > /tmp/triage/dispatch.json
+
+      - name: Run Sentry triage
+        env:
+          SENTRY_DISPATCH_PATH: ${{ github.event_name == 'repository_dispatch' && '/tmp/triage/dispatch.json' || '' }}
+        run: node scripts/sentry-triage.mjs

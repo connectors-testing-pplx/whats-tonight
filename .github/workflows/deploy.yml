@@ -1,0 +1,97 @@
+# deploy.yml — build, type-check, and (if configured) deploy to Vercel.
+#
+# This workflow runs on every push to main and on manual dispatch. It sets
+# SENTRY_RELEASE to the commit SHA so the Sentry build plugin tags the release
+# and uploads source maps — that commit is what the error-triage workflow
+# will file issues against when a regression is detected.
+#
+# When this workflow fails (build error, type error, or a failed Vercel
+# deploy), the error-triage workflow picks it up via `workflow_run` and opens
+# a GitHub issue for the failure.
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# Prevent two deploys racing over the same commit.
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: false
+
+# Permissions: read for the build, id-token for OIDC if needed later.
+permissions:
+  contents: read
+
+jobs:
+  build-and-deploy:
+    name: Build & deploy
+    runs-on: ubuntu-latest
+    env:
+      # The release name = the commit SHA. Used by @sentry/nextjs to tag every
+      # event with the exact commit responsible for a regression.
+      SENTRY_RELEASE: ${{ github.sha }}
+      SENTRY_ORG: ${{ secrets.SENTRY_ORG }}
+      SENTRY_PROJECT: ${{ secrets.SENTRY_PROJECT }}
+      SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
+      NEXT_PUBLIC_SENTRY_DSN: ${{ secrets.NEXT_PUBLIC_SENTRY_DSN }}
+      SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+      SENTRY_ENV: production
+      SENTRY_TRACES_SAMPLE_RATE: '1.0'
+      NEXT_PUBLIC_SENTRY_TRACES_SAMPLE_RATE: '1.0'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Type-check
+        run: npm run typecheck
+
+      - name: Lint
+        run: npm run lint
+        continue-on-error: true
+
+      - name: Build
+        run: npm run build
+        env:
+          # Build is where @sentry/nextjs uploads source maps + creates the
+          # release tagged with SENTRY_RELEASE (the commit SHA). If
+          # SENTRY_AUTH_TOKEN is absent, the build still succeeds — it just
+          # skips the upload.
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+
+      # --- Deploy to Vercel (only when secrets are present) -----------------
+      # This is optional: if you deploy via the Vercel Git integration instead,
+      # delete this step and the triage pipeline still catches build failures
+      # above. Keeping it lets this workflow own the deploy so a deploy failure
+      # is caught here too.
+      - name: Install Vercel CLI
+        if: ${{ secrets.VERCEL_TOKEN != '' && secrets.VERCEL_ORG_ID != '' }}
+        run: npm i -g vercel@latest
+
+      - name: Deploy to Vercel (production)
+        if: ${{ secrets.VERCEL_TOKEN != '' && secrets.VERCEL_ORG_ID != '' }}
+        run: vercel deploy --prod --yes --token=${{ secrets.VERCEL_TOKEN }}
+        env:
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+
+      - name: Finalize Sentry release
+        if: ${{ success() && env.SENTRY_AUTH_TOKEN != '' }}
+        run: |
+          npx @sentry/cli releases finalize "$SENTRY_RELEASE" || true
+          npx @sentry/cli releases set-commits --auto "$SENTRY_RELEASE" || true
+        env:
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          SENTRY_ORG: ${{ secrets.SENTRY_ORG }}
+          SENTRY_PROJECT: ${{ secrets.SENTRY_PROJECT }}
